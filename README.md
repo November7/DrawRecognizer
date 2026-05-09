@@ -2,16 +2,7 @@
 
 DrawRecognizer to prosty projekt demonstracyjny łączący trenowanie modeli rozpoznawania obrazów w TensorFlow z ich uruchamianiem bezpośrednio w przeglądarce przez TensorFlow.js. Repozytorium zawiera notatnik Jupyter do eksperymentów z sieciami neuronowymi oraz stronę HTML, na której można ręcznie narysować znak i zobaczyć wynik klasyfikacji.
 
-## Co znajduje się w projekcie
-
-- interfejs przeglądarkowy do rysowania na canvasie,
-- ładowanie modeli TensorFlow.js z katalogu models,
-- wizualizacja prawdopodobieństw klas na wykresie słupkowym,
-- notatnik z treningiem modeli dla rozpoznawania cyfr,
-- dodatkowe modele: Cyfry-TM i XO-TM z etykietami z Teachable Machine,
-- wsparcie dla metadanych modeli (metadata.json).
-
-## Jak to działa
+## Opis działania
 
 Plik index.html udostępnia dwa obszary canvas:
 
@@ -51,6 +42,15 @@ Modele oznaczone jako TM (Cyfry-TM i XO-TM) zostały wytrenowane w Google Teacha
 https://teachablemachine.withgoogle.com/
 
 Następnie zostały wyeksportowane w formacie TensorFlow.js i umieszczone w katalogu models.
+
+## Zawartość repozytorium
+
+- interfejs przeglądarkowy do rysowania na canvasie,
+- ładowanie modeli TensorFlow.js z katalogu models,
+- wizualizacja prawdopodobieństw klas na wykresie słupkowym,
+- notatnik z treningiem modeli dla rozpoznawania cyfr,
+- dodatkowe modele: Cyfry-TM i XO-TM z etykietami z Teachable Machine,
+- wsparcie dla metadanych modeli (metadata.json).
 
 ## Struktura repozytorium
 
