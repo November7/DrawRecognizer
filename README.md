@@ -6,9 +6,10 @@ DrawRecognizer to prosty projekt demonstracyjny łączący trenowanie modeli roz
 
 - interfejs przeglądarkowy do rysowania na canvasie,
 - ładowanie modeli TensorFlow.js z katalogu models,
-- wizualizacja prawdopodobieństw klas na wykresie kołowym,
+- wizualizacja prawdopodobieństw klas na wykresie słupkowym,
 - notatnik z treningiem modeli dla rozpoznawania cyfr,
-- dodatkowy model XO z etykietami X i O.
+- dodatkowe modele: Cyfry-TM i XO-TM z etykietami z Teachable Machine,
+- wsparcie dla metadanych modeli (metadata.json).
 
 ## Jak to działa
 
@@ -17,44 +18,65 @@ Plik index.html udostępnia dwa obszary canvas:
 - pierwszy służy do rysowania znaku myszą,
 - drugi pokazuje rozkład prawdopodobieństw przewidywanych przez model.
 
-Po zakończeniu rysowania aplikacja:
+Po wybraniu modelu:
 
-1. pobiera obraz z canvasu,
-2. skaluje go do rozmiaru wejściowego wybranego modelu,
-3. normalizuje dane do zakresu od 0 do 1,
-4. wykonuje predykcję w TensorFlow.js,
-5. wyświetla rozpoznaną klasę oraz wykres prawdopodobieństw.
+1. aplikacja ładuje plik `model.json` i wagi modelu,
+2. pobiera etykiety klas z pliku `metadata.json` (jeśli istnieje),
+3. canvas jest czyszczony i wartości predykcji są zerowane,
+4. użytkownik rysuje symbol,
+5. po rysunku aplikacja:
+   - pobiera obraz z canvasu,
+   - skaluje go do rozmiaru wejściowego wybranego modelu,
+   - normalizuje dane do zakresu od 0 do 1,
+   - wykonuje predykcję w TensorFlow.js,
+   - wyświetla rozpoznaną klasę oraz wykres prawdopodobieństw dla wszystkich klas.
 
 W interfejsie można przełączać dostępne modele:
 
-- Cyfry-Mnist,
-- Cyfry-TM,
-- XO-TM.
+- **Cyfry-Mnist** — model konwolucyjny trenowany na zbiorze MNIST, 10 klas (cyfry 0–9),
+- **Cyfry-TM** — model z Google Teachable Machine, 10 klas (cyfry 0–9),
+- **XO-TM** — model z Google Teachable Machine, 2 klasy (X i O).
 
-Wszystkie 3 dostępne modele mają charakter przykładowy (demo).
+## Modele i metadane
+
+Każdy model znajduje się w oddzielnym katalogu i zawiera:
+
+- `model.json` — architektura i konfiguracja modelu TensorFlow.js,
+- `*.bin` — plik wag modelu,
+- `metadata.json` (opcjonalnie) — etykiety klas w formacie JSON.
+
+Jeśli model nie posiada pliku `metadata.json`, aplikacja generuje domyślne etykiety numeryczne (0, 1, 2, ...).
 
 Modele oznaczone jako TM (Cyfry-TM i XO-TM) zostały wytrenowane w Google Teachable Machine:
 https://teachablemachine.withgoogle.com/
 
 Następnie zostały wyeksportowane w formacie TensorFlow.js i umieszczone w katalogu models.
 
-Dla modelu XO-TM etykiety klas są pobierane z pliku metadata.json. Jeśli model nie posiada metadanych, aplikacja używa domyślnych etykiet numerycznych.
-
 ## Struktura repozytorium
 
 ```text
 .
-├── digits.ipynb          # notatnik do treningu i eksperymentów z modelami
-├── index.html            # interfejs demonstracyjny w przeglądarce
+├── digits.ipynb               # notatnik do treningu i eksperymentów z modelami
+├── index.html                 # interfejs demonstracyjny w przeglądarce
+├── src/
+│   ├── app.js                # logika aplikacji (ładowanie, predykcja, wizualizacja)
+│   └── style.css             # stylowanie interfejsu
 └── models/
-    ├── Cyfry-Mnist/     # model cyfr (MNIST) w formacie TensorFlow.js
-    ├── Cyfry-TM/        # przykładowy model z Teachable Machine (TensorFlow.js)
-    └── XO-TM/           # przykładowy model z Teachable Machine + metadata.json
+    ├── Cyfry-Mnist/          # model cyfr (MNIST)
+    │   ├── model.json
+    │   ├── group1-shard1of1.bin
+    │   └── metadata.json     # etykiety: ["0", "1", "2", ...]
+    ├── Cyfry-TM/             # model Teachable Machine
+    │   ├── model.json
+    │   └── metadata.json
+    └── XO-TM/                # model Teachable Machine (X, O)
+        ├── model.json
+        └── metadata.json
 ```
 
 ## Uruchomienie podglądu
 
-Najprościej uruchomić projekt przez lokalny serwer HTTP, ponieważ przeglądarka pobiera modele i metadane przez fetch.
+Projekt wymaga lokalnego serwera HTTP, ponieważ przeglądarka pobiera modele i metadane przez fetch.
 
 Przykład z Node.js:
 
@@ -78,6 +100,13 @@ Notatnik digits.ipynb zawiera eksperymenty z różnymi architekturami sieci dla 
 
 W notatniku znajdują się również komórki związane z instalacją zgodnych wersji pakietów oraz eksportem modelu do TensorFlow.js. Projekt zakłada środowisko Python/Jupyter z bibliotekami TensorFlow, matplotlib, scikit-learn oraz tensorflowjs.
 
+Aby wyeksportować model do TensorFlow.js i dodać metadane:
+
+1. wytrenuj model w TensorFlow/Keras,
+2. eksportuj model za pomocą tensorflowjs_converter,
+3. umieść pliki w odpowiednim katalogu w `models/`,
+4. utwórz plik `metadata.json` z etykietami klas.
+
 Dodatkowo repozytorium zawiera przykładowe modele przygotowane w Teachable Machine (Google) i wyeksportowane jako TensorFlow.js (katalogi z sufiksem TM).
 
 ## Technologie
@@ -85,8 +114,8 @@ Dodatkowo repozytorium zawiera przykładowe modele przygotowane w Teachable Mach
 - TensorFlow,
 - TensorFlow.js,
 - Jupyter Notebook,
-- Chart.js,
-- HTML i JavaScript.
+- HTML i JavaScript,
+- Canvas API.
 
 ## Zastosowanie
 
@@ -94,4 +123,5 @@ Projekt nadaje się jako:
 
 - demonstracja działania klasyfikacji obrazów w przeglądarce,
 - materiał edukacyjny do eksperymentów z modelami MNIST,
-- punkt wyjścia do rozpoznawania własnych, ręcznie rysowanych symboli.
+- punkt wyjścia do rozpoznawania własnych, ręcznie rysowanych symboli,
+- przykład integracji TensorFlow.js z interfejsem użytkownika.

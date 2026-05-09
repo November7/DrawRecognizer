@@ -12,14 +12,14 @@
         <header class="page-header">
             <div>
                 <p class="eyebrow">TensorFlow.js Demo</p>
-                <h1>Rozpoznawanie rysowanych wzorcow</h1>
-                <p class="subtitle">Wybierz model, narysuj symbol i sprawdz rozklad prawdopodobienstw dla wszystkich klas.</p>
+                <h1>Rozpoznawanie rysowanych znaków</h1>
+                <p class="subtitle">Wybierz model, narysuj symbol i sprawdź rozkład prawdopodobieństwa dla wszystkich klas.</p>
             </div>
 
             <div class="toolbar">
-                <label class="field-label" for="functionSelect">Dostepny model</label>
+                <label class="field-label" for="functionSelect">Dostępne modele</label>
                 <select id="functionSelect"></select>
-                <p class="model-status" id="modelStatus">Odczytywanie katalogu models...</p>
+                <p class="model-status" id="modelStatus">Odczytywanie katalogu z modelami</p>
             </div>
         </header>
 
@@ -27,7 +27,7 @@
             <section class="draw-panel">
                 <div class="panel-heading">
                     <h2>Obszar rysowania</h2>
-                    <p class="hint">Esc czysci plansze.</p>
+                    <p class="hint">Esc czyści planszę.</p>
                 </div>
 
                 <canvas id="drawBoard" width="400" height="400"></canvas>
@@ -36,17 +36,14 @@
             <aside class="results-panel">
                 <div class="panel-heading">
                     <h2>Wynik klasyfikacji</h2>
-                    <p class="hint">Paski aktualizuja sie po zakonczeniu rysowania.</p>
+                    <p class="hint">Paski aktualizują się po zakończeniu rysowania.</p>
                 </div>
 
                 <h3 class="predictions" id="predictions">Oczekuje na model...</h3>
                 <div id="classProbabilities" class="class-probabilities"></div>
             </aside>
         </main>
-    </div>
-           
+    </div>          
     <script src="src/app.js"></script>
-
-
 </body>
 </html>

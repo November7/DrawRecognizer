@@ -1,5 +1,5 @@
 const drawBoard = document.getElementById('drawBoard');
-const ctx = drawBoard.getContext('2d');
+const ctx = drawBoard.getContext('2d', { willReadFrequently: true });
 const predDiv = document.getElementById('predictions');
 const modelSelect = document.getElementById('functionSelect');
 const modelStatus = document.getElementById('modelStatus');
@@ -97,7 +97,9 @@ async function loadModelMetadata(modelName, nClasses) {
         if (Array.isArray(data.labels) && data.labels.length > 0) {
             return data.labels;
         }
-    } catch (error) {
+    } 
+    catch (error) {
+            console.warn(`Nie można załadować metadanych dla modelu "${modelName}": ${error.message}`);
     }
 
     return Array.from({ length: nClasses }, (_, index) => `${index}`);
@@ -155,14 +157,15 @@ async function loadSelectedModel() {
         classLabels = await loadModelMetadata(modelName, model.output.shape[1]);
         modelStatus.textContent = `Załadowano model: ${modelName}`;
         clearCanvas();
-        predictModel();
-    } catch (error) {
+    } 
+    catch (error) {
         model = null;
         classLabels = [];
         predDiv.textContent = `Nie udało się załadować modelu: ${modelName}`;
         modelStatus.textContent = 'Błąd ładowania modelu.';
         probabilitiesContainer.innerHTML = '';
-    } finally {
+    } 
+    finally {
         modelSelect.disabled = false;
     }
 }
@@ -262,9 +265,10 @@ async function initializeApp() {
         renderModelOptions(availableModels);
         modelStatus.textContent = `Wykryto ${availableModels.length} modele.`;
         await loadSelectedModel();
-    } catch (error) {
+    } 
+    catch (error) {
         predDiv.textContent = 'Nie udało się uruchomić aplikacji.';
-        modelStatus.textContent = 'Serwer npx nie udostępnia katalogu models. Włącz directory listing albo dodaj endpoint JSON z listą modeli.';
+        modelStatus.textContent = 'Błąd ładowania modeli.';
         modelSelect.disabled = true;
         probabilitiesContainer.innerHTML = '';
     }
