@@ -10,6 +10,7 @@ let pos = { x: 0, y: 0 };
 let model = null;
 let classLabels = [];
 const modelsBaseUrl = new URL('models/', window.location.href);
+const fallbackModels = ['Cyfry-Mnist', 'Cyfry-TM', 'XO-TM'];
 
 function getModelAssetUrl(modelName, fileName = '') {
     return new URL(`${modelName}/${fileName}`, modelsBaseUrl).href;
@@ -24,53 +25,110 @@ function normalizeModelName(name) {
         .pop() || '';
 }
 
+async function discoverFromManifest() {
+    try {
+        const response = await fetch(getModelAssetUrl('', 'index.json'));
+
+        if (!response.ok) {
+            return [];
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+            return [];
+        }
+
+        return Array.from(
+            new Set(
+                data
+                    .map(normalizeModelName)
+                    .filter(Boolean)
+            )
+        ).sort((left, right) => left.localeCompare(right, 'pl'));
+    }
+    catch {
+        return [];
+    }
+}
+
+async function filterAvailableModels(models) {
+    const checks = await Promise.all(
+        models.map(async modelName => {
+            try {
+                const response = await fetch(getModelAssetUrl(modelName, 'model.json'), { cache: 'no-store' });
+                return response.ok ? modelName : null;
+            }
+            catch {
+                return null;
+            }
+        })
+    );
+
+    return checks.filter(Boolean);
+}
+
 modelSelect.addEventListener('change', loadSelectedModel);
 
 async function discoverModels() {
-    const response = await fetch(modelsBaseUrl.href);
-    
-    if (!response.ok) {
-        throw new Error('Nie udało się odczytać katalogu modeli.');
+    const fromManifest = await discoverFromManifest();
+
+    if (fromManifest.length > 0) {
+        return fromManifest;
     }
 
-    const contentType = response.headers.get('content-type') || '';
+    try {
+        const response = await fetch(modelsBaseUrl.href);
 
-    if (contentType.includes('application/json')) {
-        const data = await response.json();
+        if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
 
-        if (Array.isArray(data)) {
-            return Array.from(
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+
+                if (Array.isArray(data)) {
+                    return Array.from(
+                        new Set(
+                            data
+                                .map(normalizeModelName)
+                                .filter(Boolean)
+                        )
+                    ).sort((left, right) => left.localeCompare(right, 'pl'));
+                }
+            }
+
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const links = Array.from(doc.querySelectorAll('a'));
+            const discoveredModels = Array.from(
                 new Set(
-                    data
+                    links
+                        .map(link => link.getAttribute('href') || '')
+                        .map(href => href.replace(/\\/g, '/'))
+                        .map(href => href.split('?')[0].split('#')[0])
+                        .filter(href => href.endsWith('/') && href !== '../' && href !== './')
+                        .map(href => href.replace(/\/+$/, ''))
+                        .map(href => href.split('/').filter(Boolean).pop() || '')
                         .map(normalizeModelName)
-                        .filter(Boolean)
+                        .filter(modelName => modelName && modelName.toLowerCase() !== 'models')
                 )
             ).sort((left, right) => left.localeCompare(right, 'pl'));
+
+            if (discoveredModels.length > 0) {
+                return discoveredModels;
+            }
         }
     }
-
-    const html = await response.text();
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const links = Array.from(doc.querySelectorAll('a'));
-    const discoveredModels = Array.from(
-        new Set(
-            links
-                .map(link => link.getAttribute('href') || '')
-                .map(href => href.replace(/\\/g, '/'))
-                .map(href => href.split('?')[0].split('#')[0])
-                .filter(href => href.endsWith('/') && href !== '../' && href !== './')
-                .map(href => href.replace(/\/+$/, ''))
-                .map(href => href.split('/').filter(Boolean).pop() || '')
-                .map(normalizeModelName)
-                .filter(modelName => modelName && modelName.toLowerCase() !== 'models')
-        )
-    ).sort((left, right) => left.localeCompare(right, 'pl'));
-
-    if (discoveredModels.length === 0) {
-        throw new Error('Serwer nie udostępnia listingu katalogu models.');
+    catch {
     }
 
-    return discoveredModels;
+    const availableFallbackModels = await filterAvailableModels(fallbackModels);
+
+    if (availableFallbackModels.length > 0) {
+        return availableFallbackModels;
+    }
+
+    throw new Error('Nie udało się wykryć modeli. Dodaj models/index.json albo upewnij się, że model.json jest dostępny.');
 }
 
 function renderModelOptions(models) {

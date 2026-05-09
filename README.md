@@ -36,6 +36,9 @@ Każdy model znajduje się w oddzielnym katalogu i zawiera:
 - `*.bin` — plik wag modelu,
 - `metadata.json` (opcjonalnie) — etykiety klas w formacie JSON.
 
+Dla hostingu statycznego (np. GitHub Pages) lista modeli jest odczytywana z pliku `models/index.json`.
+Brak listingu katalogów na serwerze nie blokuje wtedy uruchomienia aplikacji.
+
 Jeśli model nie posiada pliku `metadata.json`, aplikacja generuje domyślne etykiety numeryczne (0, 1, 2, ...).
 
 Modele oznaczone jako TM (Cyfry-TM i XO-TM) zostały wytrenowane w Google Teachable Machine:
@@ -62,6 +65,7 @@ Następnie zostały wyeksportowane w formacie TensorFlow.js i umieszczone w kata
 │   ├── app.js                # logika aplikacji (ładowanie, predykcja, wizualizacja)
 │   └── style.css             # stylowanie interfejsu
 └── models/
+    ├── index.json            # lista dostępnych modeli dla hostingu statycznego
     ├── Cyfry-Mnist/          # model cyfr (MNIST)
     │   ├── model.json
     │   ├── group1-shard1of1.bin
