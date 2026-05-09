@@ -12,7 +12,7 @@ DrawRecognizer to prosty projekt demonstracyjny łączący trenowanie modeli roz
 
 ## Jak to działa
 
-Plik drawView.html udostępnia dwa obszary canvas:
+Plik index.html udostępnia dwa obszary canvas:
 
 - pierwszy służy do rysowania znaku myszą,
 - drugi pokazuje rozkład prawdopodobieństw przewidywanych przez model.
@@ -27,22 +27,29 @@ Po zakończeniu rysowania aplikacja:
 
 W interfejsie można przełączać dostępne modele:
 
-- digits1,
-- digits2,
-- xo.
+- Cyfry-Mnist,
+- Cyfry-TM,
+- XO-TM.
 
-Dla modelu xo etykiety klas są pobierane z pliku metadata.json. Jeśli model nie posiada metadanych, aplikacja używa domyślnych etykiet numerycznych.
+Wszystkie 3 dostępne modele mają charakter przykładowy (demo).
+
+Modele oznaczone jako TM (Cyfry-TM i XO-TM) zostały wytrenowane w Google Teachable Machine:
+https://teachablemachine.withgoogle.com/
+
+Następnie zostały wyeksportowane w formacie TensorFlow.js i umieszczone w katalogu models.
+
+Dla modelu XO-TM etykiety klas są pobierane z pliku metadata.json. Jeśli model nie posiada metadanych, aplikacja używa domyślnych etykiet numerycznych.
 
 ## Struktura repozytorium
 
 ```text
 .
 ├── digits.ipynb          # notatnik do treningu i eksperymentów z modelami
-├── drawView.html         # interfejs demonstracyjny w przeglądarce
+├── index.html            # interfejs demonstracyjny w przeglądarce
 └── models/
-	├── digits1/          # wyeksportowany model TensorFlow.js
-	├── digits2/          # wyeksportowany model TensorFlow.js
-	└── xo/               # model TensorFlow.js oraz metadata.json z etykietami
+    ├── Cyfry-Mnist/     # model cyfr (MNIST) w formacie TensorFlow.js
+    ├── Cyfry-TM/        # przykładowy model z Teachable Machine (TensorFlow.js)
+    └── XO-TM/           # przykładowy model z Teachable Machine + metadata.json
 ```
 
 ## Uruchomienie podglądu
@@ -58,7 +65,7 @@ npx serve . --listen 5500
 Następnie otwórz w przeglądarce adres:
 
 ```text
-http://localhost:5500/drawView.html
+http://localhost:5500/index.html
 ```
 
 ## Trenowanie i eksport modeli
@@ -70,6 +77,8 @@ Notatnik digits.ipynb zawiera eksperymenty z różnymi architekturami sieci dla 
 - wariant z BatchNormalization i Dropout.
 
 W notatniku znajdują się również komórki związane z instalacją zgodnych wersji pakietów oraz eksportem modelu do TensorFlow.js. Projekt zakłada środowisko Python/Jupyter z bibliotekami TensorFlow, matplotlib, scikit-learn oraz tensorflowjs.
+
+Dodatkowo repozytorium zawiera przykładowe modele przygotowane w Teachable Machine (Google) i wyeksportowane jako TensorFlow.js (katalogi z sufiksem TM).
 
 ## Technologie
 
