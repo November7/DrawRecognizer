@@ -163,6 +163,9 @@ canvas {
     border-radius: var(--radius);
     background: #000;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .predictions {

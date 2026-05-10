@@ -7,10 +7,12 @@ const probabilitiesContainer = document.getElementById('classProbabilities');
 
 let drag = false;
 let pos = { x: 0, y: 0 };
+let lastTapTime = 0;
 let model = null;
 let classLabels = [];
 const modelsBaseUrl = new URL('models/', window.location.href);
 const fallbackModels = ['Cyfry-Mnist', 'Cyfry-TM', 'XO-TM'];
+const DOUBLE_TAP_THRESHOLD_MS = 320;
 
 function getModelAssetUrl(modelName, fileName = '') {
     return new URL(`${modelName}/${fileName}`, modelsBaseUrl).href;
@@ -229,8 +231,98 @@ async function loadSelectedModel() {
 }
 
 function setPos(e) {
-    pos.x = e.clientX - ctx.canvas.getBoundingClientRect().left;
-    pos.y = e.clientY - ctx.canvas.getBoundingClientRect().top;
+    const point = getPointerPosition(e);
+    pos.x = point.x;
+    pos.y = point.y;
+}
+
+function getPointerPosition(e) {
+    const rect = ctx.canvas.getBoundingClientRect();
+
+    if (e.touches && e.touches.length > 0) {
+        return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+        };
+    }
+
+    if (e.changedTouches && e.changedTouches.length > 0) {
+        return {
+            x: e.changedTouches[0].clientX - rect.left,
+            y: e.changedTouches[0].clientY - rect.top
+        };
+    }
+
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+function startDrawing(event) {
+    event.preventDefault();
+    drag = true;
+    setPos(event);
+}
+
+function stopDrawing(event) {
+    event.preventDefault();
+
+    if (!drag) {
+        return;
+    }
+
+    drag = false;
+    predictModel();
+}
+
+function handlePointerTap(event) {
+    // Gest czyszczenia podwójnym tapnięciem tylko dla wejścia dotykowego.
+    const pointerType = event.pointerType || '';
+
+    if (pointerType !== 'touch') {
+        return;
+    }
+
+    const now = Date.now();
+
+    if (now - lastTapTime <= DOUBLE_TAP_THRESHOLD_MS) {
+        clearCanvas();
+        lastTapTime = 0;
+        return;
+    }
+
+    lastTapTime = now;
+}
+
+function handleLegacyTouchTap(event) {
+    const now = Date.now();
+
+    if (now - lastTapTime <= DOUBLE_TAP_THRESHOLD_MS) {
+        event.preventDefault();
+        clearCanvas();
+        lastTapTime = 0;
+        return;
+    }
+
+    lastTapTime = now;
+}
+
+function draw(event) {
+    event.preventDefault();
+
+    if (!drag) {
+        return;
+    }
+
+    ctx.beginPath();
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = 'white';
+    ctx.lineCap = 'round';
+    ctx.moveTo(pos.x, pos.y);
+    setPos(event);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
 }
 
 function clearCanvas() {
@@ -282,37 +374,26 @@ document.addEventListener('keydown', function (event) {
     }
 });
 
-drawBoard.addEventListener('mousedown', function (event) {
-    drag = true;
-    setPos(event);
-});
+if ('PointerEvent' in window) {
+    drawBoard.addEventListener('pointerdown', startDrawing);
+    drawBoard.addEventListener('pointermove', draw);
+    drawBoard.addEventListener('pointerup', stopDrawing);
+    drawBoard.addEventListener('pointerup', handlePointerTap);
+    drawBoard.addEventListener('pointercancel', stopDrawing);
+    drawBoard.addEventListener('pointerleave', stopDrawing);
+}
+else {
+    drawBoard.addEventListener('mousedown', startDrawing);
+    drawBoard.addEventListener('mousemove', draw);
+    drawBoard.addEventListener('mouseup', stopDrawing);
+    drawBoard.addEventListener('mouseleave', stopDrawing);
 
-drawBoard.addEventListener('mouseup', function () {
-    drag = false;
-    predictModel();
-});
-
-drawBoard.addEventListener('mouseleave', function () {
-    drag = false;
-});
-
-drawBoard.addEventListener('mousemove', function (event) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (!drag) {
-        return;
-    }
-
-    ctx.beginPath();
-    ctx.lineWidth = 10;
-    ctx.strokeStyle = 'white';
-    ctx.lineCap = 'round';
-    ctx.moveTo(pos.x, pos.y);
-    setPos(event);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-});
+    drawBoard.addEventListener('touchstart', startDrawing, { passive: false });
+    drawBoard.addEventListener('touchmove', draw, { passive: false });
+    drawBoard.addEventListener('touchend', stopDrawing, { passive: false });
+    drawBoard.addEventListener('touchend', handleLegacyTouchTap, { passive: false });
+    drawBoard.addEventListener('touchcancel', stopDrawing, { passive: false });
+}
 
 async function initializeApp() {
     clearCanvas();
