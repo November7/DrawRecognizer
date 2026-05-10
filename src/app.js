@@ -1,21 +1,36 @@
-const drawBoard = document.getElementById('drawBoard');
-const ctx = drawBoard.getContext('2d', { willReadFrequently: true });
-const predDiv = document.getElementById('predictions');
-const modelSelect = document.getElementById('functionSelect');
-const modelStatus = document.getElementById('modelStatus');
-const probabilitiesContainer = document.getElementById('classProbabilities');
+/**
+ *  Draw Recognizer - A web application for drawing and recognizing images using TensorFlow.js.
+ *  Author: Marcin Kowalski
+ *  License: MIT 
+ */
 
-let drag = false;
-let pos = { x: 0, y: 0 };
-let lastTapTime = 0;
-let model = null;
-let classLabels = [];
-const modelsBaseUrl = new URL('models/', window.location.href);
-const fallbackModels = ['Cyfry-Mnist', 'Cyfry-TM', 'XO-TM'];
-const DOUBLE_TAP_THRESHOLD_MS = 320;
+
+
+// constants and state variables
+const drawBoard                 =   document.getElementById('drawBoard');
+const predDiv                   =   document.getElementById('predictions');
+const modelSelect               =   document.getElementById('functionSelect');
+const modelStatus               =   document.getElementById('modelStatus');
+const probabilitiesContainer    =   document.getElementById('classProbabilities');
+const ctx                       =   drawBoard.getContext('2d', { willReadFrequently: true });
+const plSort                    =   (left, right) => left.localeCompare(right, 'pl');
+const modelsBaseUrl             =   new URL('models/', window.location.href);
+const fallbackModels            =   ['Cyfry-Mnist', 'Cyfry-TM', 'XO-TM'];
+const DOUBLE_TAP_THRESHOLD_MS   =   320;
+
+let drag                        =   false;
+let pos                         =   { x: 0, y: 0 };
+let lastTapTime                 =   0;
+let model                       =   null;
+let classLabels                 =   [];
+
+modelSelect.addEventListener('change', loadSelectedModel);
+
+// utility functions
 
 function getModelAssetUrl(modelName, fileName = '') {
-    return new URL(`${modelName}/${fileName}`, modelsBaseUrl).href;
+    const relativePath = modelName ? `${modelName}/${fileName}` : fileName;
+    return new URL(relativePath, modelsBaseUrl).href;
 }
 
 function normalizeModelName(name) {
@@ -31,23 +46,13 @@ async function discoverFromManifest() {
     try {
         const response = await fetch(getModelAssetUrl('', 'index.json'));
 
-        if (!response.ok) {
-            return [];
-        }
+        if (!response.ok) return [];
 
         const data = await response.json();
 
-        if (!Array.isArray(data)) {
-            return [];
-        }
+        if (!Array.isArray(data)) return [];
 
-        return Array.from(
-            new Set(
-                data
-                    .map(normalizeModelName)
-                    .filter(Boolean)
-            )
-        ).sort((left, right) => left.localeCompare(right, 'pl'));
+        return Array.from(new Set(data.map(normalizeModelName).filter(Boolean))).sort(plSort);
     }
     catch {
         return [];
@@ -70,14 +75,12 @@ async function filterAvailableModels(models) {
     return checks.filter(Boolean);
 }
 
-modelSelect.addEventListener('change', loadSelectedModel);
+
 
 async function discoverModels() {
     const fromManifest = await discoverFromManifest();
 
-    if (fromManifest.length > 0) {
-        return fromManifest;
-    }
+    if (fromManifest.length > 0) return fromManifest;
 
     try {
         const response = await fetch(modelsBaseUrl.href);
@@ -88,47 +91,30 @@ async function discoverModels() {
             if (contentType.includes('application/json')) {
                 const data = await response.json();
 
-                if (Array.isArray(data)) {
-                    return Array.from(
-                        new Set(
-                            data
-                                .map(normalizeModelName)
-                                .filter(Boolean)
-                        )
-                    ).sort((left, right) => left.localeCompare(right, 'pl'));
-                }
+                if (Array.isArray(data)) return Array.from(new Set(data.map(normalizeModelName).filter(Boolean))).sort(plSort); 
             }
 
-            const html = await response.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            const links = Array.from(doc.querySelectorAll('a'));
-            const discoveredModels = Array.from(
-                new Set(
-                    links
-                        .map(link => link.getAttribute('href') || '')
-                        .map(href => href.replace(/\\/g, '/'))
-                        .map(href => href.split('?')[0].split('#')[0])
-                        .filter(href => href.endsWith('/') && href !== '../' && href !== './')
-                        .map(href => href.replace(/\/+$/, ''))
-                        .map(href => href.split('/').filter(Boolean).pop() || '')
-                        .map(normalizeModelName)
-                        .filter(modelName => modelName && modelName.toLowerCase() !== 'models')
-                )
-            ).sort((left, right) => left.localeCompare(right, 'pl'));
+            const html              = await response.text();
+            const doc               = new DOMParser().parseFromString(html, 'text/html');
+            const links             = Array.from(doc.querySelectorAll('a'));
+            const discoveredModels  = Array.from(new Set(links.map(link => link.getAttribute('href') || '')
+                                                              .map(href => href.replace(/\\/g, '/'))
+                                                              .map(href => href.split('?')[0].split('#')[0])
+                                                              .filter(href => href.endsWith('/') && href !== '../' && href !== './')
+                                                              .map(href => href.replace(/\/+$/, ''))
+                                                              .map(href => href.split('/').filter(Boolean).pop() || '')
+                                                              .map(normalizeModelName)
+                                                              .filter(modelName => modelName && modelName.toLowerCase() !== 'models'))).sort(plSort);
 
-            if (discoveredModels.length > 0) {
-                return discoveredModels;
-            }
+            if (discoveredModels.length > 0) return discoveredModels;
         }
     }
     catch {
+        //nop
     }
 
     const availableFallbackModels = await filterAvailableModels(fallbackModels);
-
-    if (availableFallbackModels.length > 0) {
-        return availableFallbackModels;
-    }
+    if (availableFallbackModels.length > 0) return availableFallbackModels;
 
     throw new Error('Nie udało się wykryć modeli. Dodaj models/index.json albo upewnij się, że model.json jest dostępny.');
 }
@@ -137,9 +123,9 @@ function renderModelOptions(models) {
     modelSelect.innerHTML = '';
 
     models.forEach(modelName => {
-        const option = document.createElement('option');
-        option.value = modelName;
-        option.textContent = modelName;
+        const option        = document.createElement('option');
+        option.value        = modelName;
+        option.textContent  = modelName;
         modelSelect.appendChild(option);
     });
 }
@@ -148,66 +134,57 @@ async function loadModelMetadata(modelName, nClasses) {
     try {
         const response = await fetch(getModelAssetUrl(modelName, 'metadata.json'));
 
-        if (!response.ok) {
-            throw new Error('Brak metadanych modelu.');
-        }
+        if (!response.ok) throw new Error('Brak metadanych modelu.');
 
         const data = await response.json();
 
-        if (Array.isArray(data.labels) && data.labels.length > 0) {
-            return data.labels;
-        }
+        if (Array.isArray(data.labels) && data.labels.length > 0) return data.labels;
     } 
     catch (error) {
-            console.warn(`Nie można załadować metadanych dla modelu "${modelName}": ${error.message}`);
+        console.warn(`Nie można załadować metadanych dla modelu "${modelName}": ${error.message}`);
     }
 
     return Array.from({ length: nClasses }, (_, index) => `${index}`);
 }
 
 function renderProbabilityBars(labels, probabilities) {
+
+
     probabilitiesContainer.innerHTML = '';
 
     labels.forEach((label, index) => {
-        const probability = probabilities[index] ?? 0;
-        const percentage = (probability * 100).toFixed(2);
 
-        const item = document.createElement('div');
-        item.className = 'probability-item';
+        const el = (tag, className, text) => {
+            const e = document.createElement(tag);
+            if (className) e.className = className;
+            if (text !== undefined) e.textContent = text;
+            return e;
+        };
 
-        const row = document.createElement('div');
-        row.className = 'probability-row';
+        const probability       = probabilities[index] ?? 0;
+        const percentage        = (probability * 100).toFixed(2); 
 
-        const labelSpan = document.createElement('span');
-        labelSpan.className = 'probability-label';
-        labelSpan.textContent = label;
+        const item              = el('div', 'probability-item');
+        const row               = el('div', 'probability-row');
+        const labelSpan         = el('span', 'probability-label', label);
+        const valueSpan         = el('span', 'probability-value', `${percentage}%`);
+        const track             = el('div', 'probability-track');
+        const fill              = el('div', 'probability-fill');
 
-        const valueSpan = document.createElement('span');
-        valueSpan.className = 'probability-value';
-        valueSpan.textContent = `${percentage}%`;
+        fill.style.width        = `${Math.min(Math.max(probability * 100, 0), 100)}%`;
 
-        const track = document.createElement('div');
-        track.className = 'probability-track';
+        row.append(labelSpan, valueSpan);
+        track.append(fill);
+        item.append(row, track);
+        probabilitiesContainer.append(item);
 
-        const fill = document.createElement('div');
-        fill.className = 'probability-fill';
-        fill.style.width = `${Math.max(0, Math.min(probability * 100, 100))}%`;
-
-        row.appendChild(labelSpan);
-        row.appendChild(valueSpan);
-        track.appendChild(fill);
-        item.appendChild(row);
-        item.appendChild(track);
-        probabilitiesContainer.appendChild(item);
     });
 }
 
 async function loadSelectedModel() {
     const modelName = modelSelect.value;
 
-    if (!modelName) {
-        return;
-    }
+    if (!modelName) return;
 
     modelStatus.textContent = `Ładowanie modelu: ${modelName}`;
     modelSelect.disabled = true;
@@ -232,8 +209,8 @@ async function loadSelectedModel() {
 
 function setPos(e) {
     const point = getPointerPosition(e);
-    pos.x = point.x;
-    pos.y = point.y;
+    pos.x       = point.x;
+    pos.y       = point.y;
 }
 
 function getPointerPosition(e) {
@@ -268,21 +245,16 @@ function startDrawing(event) {
 function stopDrawing(event) {
     event.preventDefault();
 
-    if (!drag) {
-        return;
-    }
+    if (!drag) return;
 
     drag = false;
     predictModel();
 }
 
 function handlePointerTap(event) {
-    // Gest czyszczenia podwójnym tapnięciem tylko dla wejścia dotykowego.
     const pointerType = event.pointerType || '';
 
-    if (pointerType !== 'touch') {
-        return;
-    }
+    if (pointerType !== 'touch') return;
 
     const now = Date.now();
 
@@ -311,9 +283,7 @@ function handleLegacyTouchTap(event) {
 function draw(event) {
     event.preventDefault();
 
-    if (!drag) {
-        return;
-    }
+    if (!drag) return;
 
     ctx.beginPath();
     ctx.lineWidth = 10;
@@ -334,25 +304,21 @@ function clearCanvas() {
 }
 
 function predictModel() {
-    if (!model) {
-        return;
-    }
+    if (!model) return;
 
-    const imageData = ctx.getImageData(0, 0, drawBoard.width, drawBoard.height);
-    const width = model.input.shape[1];
-    const height = model.input.shape[2];
-    const depth = model.input.shape[3];
-    const nClasses = model.output.shape[1];
+    const imageData     = ctx.getImageData(0, 0, drawBoard.width, drawBoard.height);
+    const width         = model.input.shape[1];
+    const height        = model.input.shape[2];
+    const depth         = model.input.shape[3];
+    const nClasses      = model.output.shape[1];
 
-    if (!classLabels || classLabels.length === 0) {
-        classLabels = Array.from({ length: nClasses }, (_, index) => `${index}`);
-    }
+    if (!classLabels || classLabels.length === 0) classLabels = Array.from({ length: nClasses }, (_, index) => `${index}`);
 
     const { predictionProbabilities, bestClassIndex } = tf.tidy(() => {
-        const image = tf.browser.fromPixels(imageData, depth);
-        const resizedImage = tf.image.resizeBilinear(image, [width, height]).expandDims(0);
-        const normalizedImage = tf.cast(resizedImage, 'float32').div(255.0);
-        const prediction = model.predict(normalizedImage);
+        const image             = tf.browser.fromPixels(imageData, depth);
+        const resizedImage      = tf.image.resizeBilinear(image, [width, height]).expandDims(0);
+        const normalizedImage   = tf.cast(resizedImage, 'float32').div(255.0);
+        const prediction        = model.predict(normalizedImage);
 
         return {
             predictionProbabilities: Array.from(prediction.dataSync()),
@@ -375,24 +341,23 @@ document.addEventListener('keydown', function (event) {
 });
 
 if ('PointerEvent' in window) {
-    drawBoard.addEventListener('pointerdown', startDrawing);
-    drawBoard.addEventListener('pointermove', draw);
-    drawBoard.addEventListener('pointerup', stopDrawing);
-    drawBoard.addEventListener('pointerup', handlePointerTap);
+    drawBoard.addEventListener('pointerdown',   startDrawing);
+    drawBoard.addEventListener('pointermove',   draw);
+    drawBoard.addEventListener('pointerup',     stopDrawing);
+    drawBoard.addEventListener('pointerup',     handlePointerTap);
     drawBoard.addEventListener('pointercancel', stopDrawing);
-    drawBoard.addEventListener('pointerleave', stopDrawing);
+    drawBoard.addEventListener('pointerleave',  stopDrawing);
 }
 else {
-    drawBoard.addEventListener('mousedown', startDrawing);
-    drawBoard.addEventListener('mousemove', draw);
-    drawBoard.addEventListener('mouseup', stopDrawing);
-    drawBoard.addEventListener('mouseleave', stopDrawing);
-
-    drawBoard.addEventListener('touchstart', startDrawing, { passive: false });
-    drawBoard.addEventListener('touchmove', draw, { passive: false });
-    drawBoard.addEventListener('touchend', stopDrawing, { passive: false });
-    drawBoard.addEventListener('touchend', handleLegacyTouchTap, { passive: false });
-    drawBoard.addEventListener('touchcancel', stopDrawing, { passive: false });
+    drawBoard.addEventListener('mousedown',     startDrawing);
+    drawBoard.addEventListener('mousemove',     draw);
+    drawBoard.addEventListener('mouseup',       stopDrawing);
+    drawBoard.addEventListener('mouseleave',    stopDrawing);
+    drawBoard.addEventListener('touchstart',    startDrawing,           { passive: false });
+    drawBoard.addEventListener('touchmove',     draw,                   { passive: false });
+    drawBoard.addEventListener('touchend',      stopDrawing,            { passive: false });
+    drawBoard.addEventListener('touchend',      handleLegacyTouchTap,   { passive: false });
+    drawBoard.addEventListener('touchcancel',   stopDrawing,            { passive: false });
 }
 
 async function initializeApp() {
