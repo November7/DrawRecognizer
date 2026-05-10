@@ -150,6 +150,7 @@ select:focus {
 }
 
 .hint {
+    margin-top: 10px;
     margin-bottom: 0;
     font-size: var(--small-font);
 }
@@ -177,6 +178,10 @@ canvas {
     color: #f0f6fc;
     font-size: 20px;
     font-weight: 700;
+}
+
+.mobile-predictions-slot {
+    display: none;
 }
 
 .class-probabilities {
@@ -236,6 +241,30 @@ canvas {
     .toolbar {
         width: 100%;
     }
+
+    .mobile-predictions-slot {
+        display: block;
+        width: 100%;
+    }
+
+    .draw-panel-title {
+        display: none;
+    }
+
+    .mobile-predictions-slot .predictions {
+        margin: 0;
+    }
+
+    .draw-panel canvas {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .draw-panel > .hint {
+        max-width: 400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
 }
 
 @media (max-width: 640px) {
@@ -253,4 +282,5 @@ canvas {
     .probability-item {
         border-radius: var(--radius);
     }
+
 }

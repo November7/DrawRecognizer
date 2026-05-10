@@ -10,11 +10,14 @@ const predDiv                   =   document.getElementById('predictions');
 const modelSelect               =   document.getElementById('functionSelect');
 const modelStatus               =   document.getElementById('modelStatus');
 const probabilitiesContainer    =   document.getElementById('classProbabilities');
+const mobilePredictionsSlot     =   document.getElementById('mobilePredictionsSlot');
+const resultsPanel              =   document.querySelector('.results-panel');
 const ctx                       =   drawBoard.getContext('2d', { willReadFrequently: true });
 const plSort                    =   (left, right) => left.localeCompare(right, 'pl');
 const modelsBaseUrl             =   new URL('models/', window.location.href);
 const fallbackModels            =   ['Cyfry-Mnist', 'Cyfry-TM', 'XO-TM'];
 const DOUBLE_TAP_THRESHOLD_MS   =   320;
+const singleColumnMediaQuery    =   window.matchMedia('(max-width: 960px)');
 
 let drag                        =   false;
 let pos                         =   { x: 0, y: 0 };
@@ -38,6 +41,21 @@ function normalizeModelName(name) {
         .split('/')
         .filter(Boolean)
         .pop() || '';
+}
+
+function placePredictionsByViewport() {
+    if (!predDiv || !probabilitiesContainer) return;
+
+    if (singleColumnMediaQuery.matches) {
+        if (mobilePredictionsSlot && predDiv.parentElement !== mobilePredictionsSlot) {
+            mobilePredictionsSlot.appendChild(predDiv);
+        }
+        return;
+    }
+
+    if (resultsPanel && predDiv.parentElement !== resultsPanel) {
+        resultsPanel.insertBefore(predDiv, probabilitiesContainer);
+    }
 }
 
 async function discoverFromManifest() {
@@ -377,3 +395,12 @@ async function initializeApp() {
 }
 
 initializeApp();
+
+placePredictionsByViewport();
+
+if (typeof singleColumnMediaQuery.addEventListener === 'function') {
+    singleColumnMediaQuery.addEventListener('change', placePredictionsByViewport);
+}
+else if (typeof singleColumnMediaQuery.addListener === 'function') {
+    singleColumnMediaQuery.addListener(placePredictionsByViewport);
+}
