@@ -4,8 +4,6 @@
  *  License: MIT 
  */
 
-
-
 // constants and state variables
 const drawBoard                 =   document.getElementById('drawBoard');
 const predDiv                   =   document.getElementById('predictions');
