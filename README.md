@@ -1,208 +1,196 @@
-# DrawRecognizer
+﻿# DrawRecognizer
 [![GitHub Pages](https://img.shields.io/badge/GitHub-Pages-blue?logo=github)](https://november7.github.io/DrawRecognizer/)
 [![Language-English-success](https://img.shields.io/badge/Language-English-success)](#english)
 [![J%C4%99zyk-Polski-red](https://img.shields.io/badge/J%C4%99zyk-Polski-red)](#polski)
 
 ## English
 
-DrawRecognizer is a simple demo project that combines training image recognition models in TensorFlow with running them directly in the browser via TensorFlow.js. The repository includes a Jupyter notebook for neural network experiments and an HTML page where you can draw a symbol and see the classification result.
+DrawRecognizer is a browser demo for handwritten symbol recognition.
+The current app runs with ONNX Runtime Web and loads `.onnx` models directly from the `models/` directory.
+
+Legacy TensorFlow.js implementation (old app + old TFJS models) is kept in `tensorflow_js/`.
 
 ## How It Works
 
 After selecting a model:
 
-1. the app loads `model.json` and model weights,
-2. it reads class labels from `metadata.json` (if available),
-3. the canvas is cleared and prediction values are reset,
+1. the app loads a `.onnx` file,
+2. it reads class labels from metadata (if available),
+3. it clears the canvas and resets prediction bars,
 4. the user draws a symbol,
 5. after drawing, the app:
-   - reads the image from the canvas,
-   - resizes it to the selected model input size,
-   - normalizes data to the range from 0 to 1,
-   - runs prediction in TensorFlow.js,
-   - displays the recognized class and a probability chart for all classes.
-
-You can switch between available models in the interface:
-
-- **Cyfry-Mnist** - convolutional model trained on MNIST, 10 classes (digits 0-9),
-- **Cyfry-TM** - model from Google Teachable Machine, 10 classes (digits 0-9),
-- **XO-TM** - model from Google Teachable Machine, 2 classes (X and O).
+   - reads pixels from canvas,
+   - resizes input to model shape,
+   - normalizes values to 0..1,
+   - runs ONNX inference in the browser,
+   - displays predicted class and class probabilities.
 
 ## Models And Metadata
 
-Each model is stored in a separate directory and contains:
+Current models are listed in `models/index.json` and point to ONNX files, for example:
 
-- `model.json` - TensorFlow.js model architecture and configuration,
-- `*.bin` - model weights file,
-- `metadata.json` (optional) - class labels in JSON format.
+- `cyfry-mnist-test1.onnx`
+- `cyfry-mnist-test2.onnx`
 
-For static hosting (for example GitHub Pages), the model list is loaded from `models/index.json`.
-This allows the app to work even when directory listing is not available on the server.
+Optional metadata supported by the app:
 
-If a model does not include `metadata.json`, the app generates default numeric labels (0, 1, 2, ...).
+- `metadata.json` (same directory as model),
+- `<model-name>.metadata.json`.
 
-TM models (Cyfry-TM and XO-TM) were trained in Google Teachable Machine:
-https://teachablemachine.withgoogle.com/
-
-They were then exported to TensorFlow.js format and stored in the `models` directory.
+If metadata is missing, labels are generated as numeric indexes (`0`, `1`, `2`, ...).
 
 ## Repository Structure
 
 ```text
 .
-├── digits.ipynb               # notebook for training and model experiments
-├── index.html                 # browser demo interface
+├── digits.ipynb                      # notebook for training/experiments
+├── index.html                        # ONNX web demo entry page
+├── LICENSE
+├── README.md
+├── models/                           # active ONNX models
+│   ├── index.json
+│   ├── cyfry-mnist-test1.onnx
+│   └── cyfry-mnist-test2.onnx
 ├── src/
-│   ├── app.js                # app logic (loading, prediction, visualization)
-│   └── style.css             # interface styling
-└── models/
-    ├── index.json            # model list for static hosting
-    ├── Cyfry-Mnist/          # digit model (MNIST)
-    │   ├── model.json
-    │   ├── group1-shard1of1.bin
-    │   └── metadata.json     # labels: ["0", "1", "2", ...]
-    ├── Cyfry-TM/             # Teachable Machine model
-    │   ├── model.json
-    │   └── metadata.json
-    └── XO-TM/                # Teachable Machine model (X, O)
-        ├── model.json
-        └── metadata.json
+│   ├── app.js                        # ONNX Runtime Web logic
+│   └── style.css
+└── tensorflow_js/                    # archived legacy TensorFlow.js app
+    ├── index.html
+    ├── models/
+    │   ├── index.json
+    │   ├── Cyfry-Mnist/
+    │   ├── Cyfry-TM/
+    │   └── XO-TM/
+    └── src/
+        ├── app.js
+        └── style.css
 ```
 
-## Run A Local Preview
+## Run Local Preview
 
-The project requires a local HTTP server because the browser fetches models and metadata.
+Use any local HTTP server (required for model fetch):
 
-Node.js example:
-
-```
+```bash
 npx serve . --listen 5500
 ```
 
-Then open this URL in your browser:
+Open:
 
 ```text
 http://localhost:5500/index.html
 ```
 
-## Training And Model Export
+## Training And Export
 
-The `digits.ipynb` notebook includes experiments with different neural network architectures for MNIST digit recognition, including:
+`digits.ipynb` contains training experiments for digit recognition.
+For the current app, export models to ONNX and place them in `models/`, then update `models/index.json`.
 
-- dense models,
-- convolutional models,
-- a variant with BatchNormalization and Dropout.
+## Migration Notes (TFJS -> ONNX)
 
-The notebook also contains cells related to installing compatible package versions and exporting a model to TensorFlow.js. The project assumes a Python/Jupyter environment with TensorFlow, matplotlib, scikit-learn, and tensorflowjs.
+To add a new ONNX model to the current app:
 
-To export a model to TensorFlow.js and add metadata:
+1. copy `<name>.onnx` to `models/`,
+2. add `<name>.onnx` to `models/index.json`,
+3. optionally add labels file as:
+    - `models/metadata.json` or
+    - `models/<name>.metadata.json`.
 
-1. train a model in TensorFlow/Keras,
-2. export the model using `tensorflowjs_converter`,
-3. place files in the proper directory under `models/`,
-4. create `metadata.json` with class labels.
-
-Additionally, the repository includes sample models created in Teachable Machine (Google) and exported as TensorFlow.js (directories with the `TM` suffix).
+The app version in the repository root is the active ONNX version.
+Legacy TensorFlow.js code and models are archived in `tensorflow_js/`.
 
 ---
 
 ## Polski
 
-DrawRecognizer to prosty projekt demonstracyjny łączący trenowanie modeli rozpoznawania obrazów w TensorFlow z ich uruchamianiem bezpośrednio w przeglądarce przez TensorFlow.js. Repozytorium zawiera notatnik Jupyter do eksperymentów z sieciami neuronowymi oraz stronę HTML, na której można ręcznie narysować znak i zobaczyć wynik klasyfikacji.
+DrawRecognizer to demonstracyjna aplikacja webowa do rozpoznawania ręcznie rysowanych symboli.
+Aktualna wersja działa na ONNX Runtime Web i ładuje modele `.onnx` bezpośrednio z katalogu `models/`.
 
-## Opis działania
+Starsza implementacja TensorFlow.js (stara aplikacja + stare modele TFJS) została zachowana w `tensorflow_js/`.
+
+## Opis Działania
 
 Po wybraniu modelu:
 
-1. aplikacja ładuje plik `model.json` i wagi modelu,
-2. pobiera etykiety klas z pliku `metadata.json` (jeśli istnieje),
-3. canvas jest czyszczony i wartości predykcji są zerowane,
+1. aplikacja ładuje plik `.onnx`,
+2. odczytuje etykiety klas z metadanych (jeśli istnieją),
+3. czyści canvas i resetuje paski predykcji,
 4. użytkownik rysuje symbol,
-5. po rysunku aplikacja:
-   - pobiera obraz z canvasu,
-   - skaluje go do rozmiaru wejściowego wybranego modelu,
-   - normalizuje dane do zakresu od 0 do 1,
-   - wykonuje predykcję w TensorFlow.js,
-   - wyświetla rozpoznaną klasę oraz wykres prawdopodobieństw dla wszystkich klas.
+5. po zakończeniu rysowania aplikacja:
+   - pobiera piksele z canvasu,
+   - skaluje wejście do kształtu modelu,
+   - normalizuje wartości do zakresu 0..1,
+   - uruchamia inferencję ONNX w przeglądarce,
+   - wyświetla rozpoznaną klasę i prawdopodobieństwa klas.
 
-W interfejsie można przełączać dostępne modele:
+## Modele I Metadane
 
-- **Cyfry-Mnist** — model konwolucyjny trenowany na zbiorze MNIST, 10 klas (cyfry 0–9),
-- **Cyfry-TM** — model z Google Teachable Machine, 10 klas (cyfry 0–9),
-- **XO-TM** — model z Google Teachable Machine, 2 klasy (X i O).
+Aktualne modele są trzymane w `models/index.json` i wskazują pliki ONNX, np.:
 
-## Modele i metadane
+- `cyfry-mnist-test1.onnx`
+- `cyfry-mnist-test2.onnx`
 
-Każdy model znajduje się w oddzielnym katalogu i zawiera:
+Opcjonalne metadane obsługiwane przez aplikację:
 
-- `model.json` — architektura i konfiguracja modelu TensorFlow.js,
-- `*.bin` — plik wag modelu,
-- `metadata.json` (opcjonalnie) — etykiety klas w formacie JSON.
+- `metadata.json` (w tym samym katalogu co model),
+- `<nazwa-modelu>.metadata.json`.
 
-Dla hostingu statycznego (np. GitHub Pages) lista modeli jest odczytywana z pliku `models/index.json`.
-Brak listingu katalogów na serwerze nie blokuje wtedy uruchomienia aplikacji.
+Jeżeli metadanych brak, aplikacja generuje etykiety numeryczne (`0`, `1`, `2`, ...).
 
-Jeśli model nie posiada pliku `metadata.json`, aplikacja generuje domyślne etykiety numeryczne (0, 1, 2, ...).
-
-Modele oznaczone jako TM (Cyfry-TM i XO-TM) zostały wytrenowane w Google Teachable Machine:
-https://teachablemachine.withgoogle.com/
-
-Następnie zostały wyeksportowane w formacie TensorFlow.js i umieszczone w katalogu models.
-
-## Struktura repozytorium
+## Struktura Repozytorium
 
 ```text
 .
-├── digits.ipynb               # notatnik do treningu i eksperymentów z modelami
-├── index.html                 # interfejs demonstracyjny w przeglądarce
+├── digits.ipynb                      # notatnik treningowy / eksperymenty
+├── index.html                        # wejście do demo ONNX
+├── LICENSE
+├── README.md
+├── models/                           # aktywne modele ONNX
+│   ├── index.json
+│   ├── cyfry-mnist-test1.onnx
+│   └── cyfry-mnist-test2.onnx
 ├── src/
-│   ├── app.js                # logika aplikacji (ładowanie, predykcja, wizualizacja)
-│   └── style.css             # stylowanie interfejsu
-└── models/
-    ├── index.json            # lista dostępnych modeli dla hostingu statycznego
-    ├── Cyfry-Mnist/          # model cyfr (MNIST)
-    │   ├── model.json
-    │   ├── group1-shard1of1.bin
-    │   └── metadata.json     # etykiety: ["0", "1", "2", ...]
-    ├── Cyfry-TM/             # model Teachable Machine
-    │   ├── model.json
-    │   └── metadata.json
-    └── XO-TM/                # model Teachable Machine (X, O)
-        ├── model.json
-        └── metadata.json
+│   ├── app.js                        # logika ONNX Runtime Web
+│   └── style.css
+└── tensorflow_js/                    # archiwum starej wersji TensorFlow.js
+    ├── index.html
+    ├── models/
+    │   ├── index.json
+    │   ├── Cyfry-Mnist/
+    │   ├── Cyfry-TM/
+    │   └── XO-TM/
+    └── src/
+        ├── app.js
+        └── style.css
 ```
 
-## Uruchomienie podglądu
+## Uruchomienie Lokalnie
 
-Projekt wymaga lokalnego serwera HTTP, ponieważ przeglądarka pobiera modele i metadane przez fetch.
+Użyj dowolnego serwera HTTP (wymagane dla fetch modeli):
 
-Przykład z Node.js:
-
-```
+```bash
 npx serve . --listen 5500
 ```
 
-Następnie otwórz w przeglądarce adres:
+Otwórz:
 
 ```text
 http://localhost:5500/index.html
 ```
 
-## Trenowanie i eksport modeli
+## Trening I Eksport
 
-Notatnik digits.ipynb zawiera eksperymenty z różnymi architekturami sieci dla rozpoznawania cyfr MNIST, w tym:
+`digits.ipynb` zawiera eksperymenty treningowe dla rozpoznawania cyfr.
+Dla obecnej aplikacji eksportuj modele do ONNX, umieść je w `models/` i zaktualizuj `models/index.json`.
 
-- modele gęste,
-- modele konwolucyjne,
-- wariant z BatchNormalization i Dropout.
+## Notatki Migracyjne (TFJS -> ONNX)
 
-W notatniku znajdują się również komórki związane z instalacją zgodnych wersji pakietów oraz eksportem modelu do TensorFlow.js. Projekt zakłada środowisko Python/Jupyter z bibliotekami TensorFlow, matplotlib, scikit-learn oraz tensorflowjs.
+Aby dodać nowy model ONNX do obecnej aplikacji:
 
-Aby wyeksportować model do TensorFlow.js i dodać metadane:
+1. skopiuj `<nazwa>.onnx` do `models/`,
+2. dopisz `<nazwa>.onnx` do `models/index.json`,
+3. opcjonalnie dodaj plik etykiet jako:
+    - `models/metadata.json` albo
+    - `models/<nazwa>.metadata.json`.
 
-1. wytrenuj model w TensorFlow/Keras,
-2. eksportuj model za pomocą tensorflowjs_converter,
-3. umieść pliki w odpowiednim katalogu w `models/`,
-4. utwórz plik `metadata.json` z etykietami klas.
-
-Dodatkowo repozytorium zawiera przykładowe modele przygotowane w Teachable Machine (Google) i wyeksportowane jako TensorFlow.js (katalogi z sufiksem TM).
+Wersja aplikacji w głównym katalogu repo to aktywna wersja ONNX.
+Stary kod i modele TensorFlow.js są zarchiwizowane w `tensorflow_js/`.
