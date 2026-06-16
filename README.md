@@ -31,6 +31,7 @@ Current models are listed in `models/index.json` and point to ONNX files, for ex
 
 - `cyfry-mnist-test1.onnx`
 - `cyfry-mnist-test2.onnx`
+- `tm.xo.onnx`
 
 Optional metadata supported by the app:
 
@@ -50,17 +51,25 @@ If metadata is missing, labels are generated as numeric indexes (`0`, `1`, `2`, 
 ├── models/                           # active ONNX models
 │   ├── index.json
 │   ├── cyfry-mnist-test1.onnx
-│   └── cyfry-mnist-test2.onnx
+│   ├── cyfry-mnist-test2.onnx
+│   └── tm.xo.onnx
 ├── src/
 │   ├── app.js                        # ONNX Runtime Web logic
+│   ├── model-utils.js
 │   └── style.css
 └── tensorflow_js/                    # archived legacy TensorFlow.js app
     ├── index.html
     ├── models/
     │   ├── index.json
     │   ├── Cyfry-Mnist/
+    │   │   ├── metadata.json
+    │   │   └── model.json
     │   ├── Cyfry-TM/
+    │   │   ├── metadata.json
+    │   │   └── model.json
     │   └── XO-TM/
+    │       ├── metadata.json
+    │       └── model.json
     └── src/
         ├── app.js
         └── style.css
@@ -128,6 +137,7 @@ Aktualne modele są trzymane w `models/index.json` i wskazują pliki ONNX, np.:
 
 - `cyfry-mnist-test1.onnx`
 - `cyfry-mnist-test2.onnx`
+- `tm.xo.onnx`
 
 Opcjonalne metadane obsługiwane przez aplikację:
 
@@ -147,17 +157,25 @@ Jeżeli metadanych brak, aplikacja generuje etykiety numeryczne (`0`, `1`, `2`, 
 ├── models/                           # aktywne modele ONNX
 │   ├── index.json
 │   ├── cyfry-mnist-test1.onnx
-│   └── cyfry-mnist-test2.onnx
+│   ├── cyfry-mnist-test2.onnx
+│   └── tm.xo.onnx
 ├── src/
 │   ├── app.js                        # logika ONNX Runtime Web
+│   ├── model-utils.js
 │   └── style.css
 └── tensorflow_js/                    # archiwum starej wersji TensorFlow.js
     ├── index.html
     ├── models/
     │   ├── index.json
     │   ├── Cyfry-Mnist/
+    │   │   ├── metadata.json
+    │   │   └── model.json
     │   ├── Cyfry-TM/
+    │   │   ├── metadata.json
+    │   │   └── model.json
     │   └── XO-TM/
+    │       ├── metadata.json
+    │       └── model.json
     └── src/
         ├── app.js
         └── style.css
