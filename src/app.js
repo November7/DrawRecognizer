@@ -24,7 +24,9 @@ const {
     discoverModels,
     normalizeScores,
     resolveInputShape,
-    loadModelMetadata,
+    loadModelMetadataFromOnnx,
+    loadLabelsFromLabelEncoder,
+    loadLabelsFromMetadataProps,
     resolveModelOutput,
     resolveOutputTensor
 } = window.DrawRecognizerModelUtils;
@@ -146,56 +148,56 @@ function fillFlatGrayData(target, pixelData, width, height) {
 }
 
 function preprocessInputTensor(shape) {
-    if (shape.length === 2) {
+    const rank = shape.length;
+
+    // 2D: [N, features]
+    if (rank === 2) {
         const features = shape[1];
         const side = Math.round(Math.sqrt(features));
-        const width = side * side === features ? side : features;
-        const height = side * side === features ? side : 1;
-        return buildFlatGrayTensor(shape, width, height);
+        return buildFlatGrayTensor(shape, side, side);
     }
 
-    if (shape.length === 3) {
-        return buildFlatGrayTensor(shape, shape[2], shape[1]);
+    // 3D: [N, H, W]
+    if (rank === 3) {
+        return buildFlatGrayTensor(shape, shape[1], shape[2]);
     }
 
-    const layout = getInputLayout(shape);
-    const channels = layout === 'NHWC' ? shape[3] : shape[1];
-    const height = layout === 'NHWC' ? shape[1] : shape[2];
-    const width = layout === 'NHWC' ? shape[2] : shape[3];
+    // 4D: obraz
+    const [N, D1, D2, D3] = shape;
+
+    const isNHWC = (D3 === 1 || D3 === 3);
+    const channels = isNHWC ? D3 : D1;
+    const height   = isNHWC ? D1 : D2;
+    const width    = isNHWC ? D2 : D3;
 
     const imageData = getResizedPixelData(width, height);
-    const data = new Float32Array(shape[0] * shape[1] * shape[2] * shape[3]);
+    const data = new Float32Array(N * channels * width * height);
 
     for (let h = 0; h < height; h++) {
         for (let w = 0; w < width; w++) {
-            const srcOffset = (h * width + w) * 4;
-            const r = imageData[srcOffset] / 255;
-            const g = imageData[srcOffset + 1] / 255;
-            const b = imageData[srcOffset + 2] / 255;
+            const src = (h * width + w) * 4;
+            const r = imageData[src] / 255;
+            const g = imageData[src + 1] / 255;
+            const b = imageData[src + 2] / 255;
 
-            if (layout === 'NHWC') {
-                const base = ((h * width) + w) * channels;
-
-                if (channels === 1) {
-                    data[base] = r;
-                }
+            if (isNHWC) {
+                const base = (h * width + w) * channels;
+                if (channels === 1) data[base] = r;
                 else {
                     data[base] = r;
                     data[base + 1] = g;
                     data[base + 2] = b;
                 }
-            }
-            else {
+            } else {
                 const pixelIndex = h * width + w;
+                const channelSize = width * height;
 
                 if (channels === 1) {
                     data[pixelIndex] = r;
-                }
-                else {
-                    const channelSize = width * height;
+                } else {
                     data[pixelIndex] = r;
                     data[channelSize + pixelIndex] = g;
-                    data[(channelSize * 2) + pixelIndex] = b;
+                    data[channelSize * 2 + pixelIndex] = b;
                 }
             }
         }
@@ -203,6 +205,7 @@ function preprocessInputTensor(shape) {
 
     return new ort.Tensor('float32', data, shape);
 }
+
 
 function tryUpdateInputShapeFromOrtError(errorMessage) {
     const message = String(errorMessage || '');
@@ -261,7 +264,22 @@ async function loadSelectedModel() {
 
         const nClasses = outputSelection.classCount;
 
-        classLabels = await loadModelMetadata({ getModelAssetUrl, modelPath, nClasses });
+        let labels = await loadModelMetadataFromOnnx(session, nClasses);
+
+        if (!labels || labels.length === 0)
+            labels = await loadLabelsFromMetadataProps(getModelAssetUrl, modelPath);
+
+        if (!labels || labels.length === 0)
+            labels = await loadLabelsFromLabelEncoder(getModelAssetUrl, modelPath);
+
+        if (!labels || labels.length === 0)
+            labels = Array.from({ length: nClasses }, (_, i) => String(i));
+
+
+        classLabels = labels;
+
+
+
         modelStatus.textContent = `Załadowano model: ${modelPath}`;
         clearCanvas();
     }
