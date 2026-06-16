@@ -20,6 +20,14 @@ const modelsBaseUrl             =   new URL('models/', window.location.href);
 const fallbackModels            =   ['test1.onnx'];
 const DOUBLE_TAP_THRESHOLD_MS   =   320;
 const singleColumnMediaQuery    =   window.matchMedia('(max-width: 960px)');
+const {
+    discoverModels,
+    normalizeScores,
+    resolveInputShape,
+    loadModelMetadata,
+    resolveModelOutput,
+    resolveOutputTensor
+} = window.DrawRecognizerModelUtils;
 
 let drag                        =   false;
 let pos                         =   { x: 0, y: 0 };
@@ -28,6 +36,7 @@ let session                     =   null;
 let modelInputShape             =   [1, 28, 28, 1];
 let modelInputRank              =   4;
 let modelOutputName             =   '';
+let currentModelPath            =   '';
 let classLabels                 =   [];
 
 modelSelect.addEventListener('change', loadSelectedModel);
@@ -36,15 +45,6 @@ modelSelect.addEventListener('change', loadSelectedModel);
 
 function getModelAssetUrl(pathName = '') {
     return new URL(pathName, modelsBaseUrl).href;
-}
-
-function normalizeModelName(name) {
-    return String(name || '')
-        .replace(/\\/g, '/')
-        .replace(/^\.\//, '')
-        .replace(/^\/+/, '')
-        .replace(/\/+$/, '')
-        .trim();
 }
 
 function placePredictionsByViewport() {
@@ -62,81 +62,6 @@ function placePredictionsByViewport() {
     }
 }
 
-async function discoverFromManifest() {
-    try {
-        const response = await fetch(getModelAssetUrl('index.json'));
-
-        if (!response.ok) return [];
-
-        const data = await response.json();
-
-        if (!Array.isArray(data)) return [];
-
-        return Array.from(new Set(data
-            .map(normalizeModelName)
-            .filter(entry => entry.toLowerCase().endsWith('.onnx')))).sort(plSort);
-    }
-    catch {
-        return [];
-    }
-}
-
-async function filterAvailableModels(models) {
-    const checks = await Promise.all(
-        models.map(async modelPath => {
-            try {
-                const response = await fetch(getModelAssetUrl(modelPath), { cache: 'no-store' });
-                return response.ok ? modelPath : null;
-            }
-            catch {
-                return null;
-            }
-        })
-    );
-
-    return checks.filter(Boolean);
-}
-
-async function discoverModels() {
-    const fromManifest = await discoverFromManifest();
-
-    if (fromManifest.length > 0) return fromManifest;
-
-    try {
-        const response = await fetch(modelsBaseUrl.href);
-
-        if (response.ok) {
-            const contentType = response.headers.get('content-type') || '';
-
-            if (contentType.includes('application/json')) {
-                const data = await response.json();
-
-                if (Array.isArray(data)) {
-                    return Array.from(new Set(data
-                        .map(normalizeModelName)
-                        .filter(entry => entry.toLowerCase().endsWith('.onnx')))).sort(plSort);
-                }
-            }
-
-            const html = await response.text();
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            const links = Array.from(doc.querySelectorAll('a'));
-            const discoveredModels = Array.from(new Set(links.map(link => link.getAttribute('href') || '')
-                .map(normalizeModelName)
-                .filter(href => href.toLowerCase().endsWith('.onnx')))).sort(plSort);
-
-            if (discoveredModels.length > 0) return discoveredModels;
-        }
-    }
-    catch {
-        // nop
-    }
-
-    const availableFallbackModels = await filterAvailableModels(fallbackModels);
-    if (availableFallbackModels.length > 0) return availableFallbackModels;
-
-    throw new Error('Nie udało się wykryć modeli. Dodaj models/index.json albo upewnij się, że pliki .onnx są dostępne.');
-}
 
 function renderModelOptions(models) {
     modelSelect.innerHTML = '';
@@ -149,85 +74,6 @@ function renderModelOptions(models) {
     });
 }
 
-function softmax(values) {
-    const maxVal = Math.max(...values);
-    const exps = values.map(value => Math.exp(value - maxVal));
-    const sum = exps.reduce((acc, val) => acc + val, 0) || 1;
-    return exps.map(value => value / sum);
-}
-
-function normalizeScores(values) {
-    const sum = values.reduce((acc, val) => acc + val, 0);
-    const allBounded = values.every(value => Number.isFinite(value) && value >= 0 && value <= 1);
-
-    if (allBounded && sum > 0.95 && sum < 1.05) return values;
-
-    return softmax(values);
-}
-
-function readDimensionValue(dim, fallback) {
-    return Number.isInteger(dim) && dim > 0 ? dim : fallback;
-}
-
-function resolveInputShape(inputMeta) {
-    const dims = Array.isArray(inputMeta?.dimensions) ? inputMeta.dimensions : [];
-
-    if (dims.length === 2) {
-        const d0 = readDimensionValue(dims[0], 1);
-        const d1 = readDimensionValue(dims[1], 784);
-        return [d0, d1];
-    }
-
-    if (dims.length === 3) {
-        const d0 = readDimensionValue(dims[0], 1);
-        const d1 = readDimensionValue(dims[1], 28);
-        const d2 = readDimensionValue(dims[2], 28);
-        return [d0, d1, d2];
-    }
-
-    if (dims.length !== 4) return [1, 28, 28, 1];
-
-    const d0 = readDimensionValue(dims[0], 1);
-    const d1 = readDimensionValue(dims[1], 28);
-    const d2 = readDimensionValue(dims[2], 28);
-    const d3 = readDimensionValue(dims[3], 1);
-
-    return [d0, d1, d2, d3];
-}
-
-function getModelMetadataCandidates(modelPath) {
-    const cleanedPath = modelPath.replace(/\\/g, '/').replace(/^\/+/, '');
-    const lastSlashIndex = cleanedPath.lastIndexOf('/');
-    const directoryPath = lastSlashIndex >= 0 ? cleanedPath.slice(0, lastSlashIndex + 1) : '';
-    const fileName = lastSlashIndex >= 0 ? cleanedPath.slice(lastSlashIndex + 1) : cleanedPath;
-    const baseName = fileName.replace(/\.onnx$/i, '');
-
-    return [
-        `${directoryPath}metadata.json`,
-        `${directoryPath}${baseName}.metadata.json`
-    ];
-}
-
-async function loadModelMetadata(modelPath, nClasses) {
-    const candidates = getModelMetadataCandidates(modelPath);
-
-    for (const candidate of candidates) {
-        try {
-            const response = await fetch(getModelAssetUrl(candidate));
-
-            if (!response.ok) continue;
-
-            const data = await response.json();
-
-            if (Array.isArray(data.labels) && data.labels.length > 0) return data.labels;
-        }
-        catch {
-            // nop
-        }
-    }
-
-    return Array.from({ length: nClasses }, (_, index) => `${index}`);
-}
 
 function renderProbabilityBars(labels, probabilities) {
     probabilitiesContainer.innerHTML = '';
@@ -276,6 +122,20 @@ function getResizedPixelData(width, height) {
     return preprocessCtx.getImageData(0, 0, width, height).data;
 }
 
+function buildFlatGrayTensor(shape, width, height) {
+    const pixelData = getResizedPixelData(width, height);
+    const sampleSize = width * height;
+    const vectorSize = shape.slice(1).reduce((acc, val) => acc * val, 1);
+    const data = new Float32Array(shape[0] * vectorSize);
+
+    for (let batch = 0; batch < shape[0]; batch++) {
+        const offset = batch * vectorSize;
+        fillFlatGrayData(data.subarray(offset, offset + Math.min(vectorSize, sampleSize)), pixelData, width, height);
+    }
+
+    return new ort.Tensor('float32', data, shape);
+}
+
 function fillFlatGrayData(target, pixelData, width, height) {
     const count = Math.min(target.length, width * height);
 
@@ -291,29 +151,11 @@ function preprocessInputTensor(shape) {
         const side = Math.round(Math.sqrt(features));
         const width = side * side === features ? side : features;
         const height = side * side === features ? side : 1;
-        const pixelData = getResizedPixelData(width, height);
-        const data = new Float32Array(shape[0] * shape[1]);
-
-        for (let batch = 0; batch < shape[0]; batch++) {
-            const offset = batch * shape[1];
-            fillFlatGrayData(data.subarray(offset, offset + shape[1]), pixelData, width, height);
-        }
-
-        return new ort.Tensor('float32', data, shape);
+        return buildFlatGrayTensor(shape, width, height);
     }
 
     if (shape.length === 3) {
-        const height = shape[1];
-        const width = shape[2];
-        const pixelData = getResizedPixelData(width, height);
-        const data = new Float32Array(shape[0] * shape[1] * shape[2]);
-
-        for (let batch = 0; batch < shape[0]; batch++) {
-            const offset = batch * width * height;
-            fillFlatGrayData(data.subarray(offset, offset + (width * height)), pixelData, width, height);
-        }
-
-        return new ort.Tensor('float32', data, shape);
+        return buildFlatGrayTensor(shape, shape[2], shape[1]);
     }
 
     const layout = getInputLayout(shape);
@@ -362,6 +204,34 @@ function preprocessInputTensor(shape) {
     return new ort.Tensor('float32', data, shape);
 }
 
+function tryUpdateInputShapeFromOrtError(errorMessage) {
+    const message = String(errorMessage || '');
+    const matches = Array.from(message.matchAll(/index:\s*(\d+)\s*Got:\s*\d+\s*Expected:\s*(\d+)/g));
+
+    if (matches.length === 0) return false;
+
+    const updatedShape = [...modelInputShape];
+
+    for (const match of matches) {
+        const index = Number.parseInt(match[1], 10);
+        const expected = Number.parseInt(match[2], 10);
+
+        if (!Number.isInteger(index) || !Number.isInteger(expected) || expected <= 0) continue;
+        if (index < 0 || index >= updatedShape.length) continue;
+
+        updatedShape[index] = expected;
+    }
+
+    const changed = updatedShape.some((value, index) => value !== modelInputShape[index]);
+
+    if (!changed) return false;
+
+    modelInputShape = updatedShape;
+    modelInputRank = updatedShape.length;
+    modelStatus.textContent = `Dopasowano wejście modelu: [${updatedShape.join(', ')}]`;
+    return true;
+}
+
 async function loadSelectedModel() {
     const modelPath = modelSelect.value;
 
@@ -369,6 +239,7 @@ async function loadSelectedModel() {
 
     modelStatus.textContent = `Ładowanie modelu: ${modelPath}`;
     modelSelect.disabled = true;
+    currentModelPath = modelPath;
 
     try {
         session = await ort.InferenceSession.create(getModelAssetUrl(modelPath), {
@@ -380,16 +251,17 @@ async function loadSelectedModel() {
 
         if (!inputName || !outputName) throw new Error('Model ONNX nie ma poprawnych wejść/wyjść.');
 
-        modelInputShape = resolveInputShape(session.inputMetadata?.[inputName]);
+        modelInputShape = resolveInputShape(session.inputMetadata?.[inputName], currentModelPath);
         modelInputRank = modelInputShape.length;
         modelOutputName = outputName;
 
-        const outputDims = session.outputMetadata?.[outputName]?.dimensions || [];
-        const nClasses = Number.isInteger(outputDims[outputDims.length - 1])
-            ? outputDims[outputDims.length - 1]
-            : 10;
+        const outputSelection = resolveModelOutput(session.outputNames, session.outputMetadata);
 
-        classLabels = await loadModelMetadata(modelPath, nClasses);
+        modelOutputName = outputSelection.name || outputName;
+
+        const nClasses = outputSelection.classCount;
+
+        classLabels = await loadModelMetadata({ getModelAssetUrl, modelPath, nClasses });
         modelStatus.textContent = `Załadowano model: ${modelPath}`;
         clearCanvas();
     }
@@ -406,7 +278,7 @@ async function loadSelectedModel() {
     }
 }
 
-function setPos(e) {
+function updatePos(e) {
     const point = getPointerPosition(e);
     pos.x = point.x;
     pos.y = point.y;
@@ -438,7 +310,7 @@ function getPointerPosition(e) {
 function startDrawing(event) {
     event.preventDefault();
     drag = true;
-    setPos(event);
+    updatePos(event);
 }
 
 function stopDrawing(event) {
@@ -455,9 +327,16 @@ function handlePointerTap(event) {
 
     if (pointerType !== 'touch') return;
 
+    handleDoubleTap(event, false);
+}
+
+function handleDoubleTap(event, shouldPreventDefault) {
     const now = Date.now();
 
     if (now - lastTapTime <= DOUBLE_TAP_THRESHOLD_MS) {
+        if (shouldPreventDefault && event?.preventDefault) {
+            event.preventDefault();
+        }
         clearCanvas();
         lastTapTime = 0;
         return;
@@ -467,16 +346,7 @@ function handlePointerTap(event) {
 }
 
 function handleLegacyTouchTap(event) {
-    const now = Date.now();
-
-    if (now - lastTapTime <= DOUBLE_TAP_THRESHOLD_MS) {
-        event.preventDefault();
-        clearCanvas();
-        lastTapTime = 0;
-        return;
-    }
-
-    lastTapTime = now;
+    handleDoubleTap(event, true);
 }
 
 function draw(event) {
@@ -489,7 +359,7 @@ function draw(event) {
     ctx.strokeStyle = 'white';
     ctx.lineCap = 'round';
     ctx.moveTo(pos.x, pos.y);
-    setPos(event);
+    updatePos(event);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
 }
@@ -504,17 +374,22 @@ function clearCanvas() {
 
 function predictModel() {
     if (!session) return;
-    void predictModelAsync();
+    void predictModelAsync(0);
 }
 
-async function predictModelAsync() {
+async function predictModelAsync(retryCount = 0) {
     const inputName = session.inputNames[0];
 
     try {
         const inputTensor = preprocessInputTensor(modelInputShape);
         const outputs = await session.run({ [inputName]: inputTensor });
-        const outputTensor = outputs[modelOutputName] || outputs[session.outputNames[0]];
-        const rawScores = Array.from(outputTensor?.data || []);
+        const selectedOutput = resolveOutputTensor(outputs, modelOutputName);
+
+        if (!selectedOutput) return;
+
+        modelOutputName = selectedOutput.name;
+
+        const rawScores = Array.from(selectedOutput.tensor.data || []);
 
         if (rawScores.length === 0) return;
 
@@ -523,7 +398,7 @@ async function predictModelAsync() {
             return currentValue > arr[bestIndex] ? currentIndex : bestIndex;
         }, 0);
 
-        if (!classLabels || classLabels.length === 0) {
+        if (!classLabels || classLabels.length !== predictionProbabilities.length) {
             classLabels = Array.from({ length: predictionProbabilities.length }, (_, index) => `${index}`);
         }
 
@@ -532,6 +407,12 @@ async function predictModelAsync() {
     }
     catch (error) {
         const errorMessage = error?.message || 'nieznany błąd';
+
+        if (retryCount < 1 && tryUpdateInputShapeFromOrtError(errorMessage)) {
+            await predictModelAsync(retryCount + 1);
+            return;
+        }
+
         predDiv.textContent = `Błąd inferencji modelu ONNX: ${errorMessage}`;
         modelStatus.textContent = `Błąd inferencji (${modelInputRank}D).`;
         console.error(error);
@@ -548,31 +429,31 @@ document.addEventListener('keydown', function (event) {
     }
 });
 
+function bindEvents(events, handler, options) {
+    events.forEach(eventName => drawBoard.addEventListener(eventName, handler, options));
+}
+
 if ('PointerEvent' in window) {
-    drawBoard.addEventListener('pointerdown', startDrawing);
-    drawBoard.addEventListener('pointermove', draw);
-    drawBoard.addEventListener('pointerup', stopDrawing);
-    drawBoard.addEventListener('pointerup', handlePointerTap);
-    drawBoard.addEventListener('pointercancel', stopDrawing);
-    drawBoard.addEventListener('pointerleave', stopDrawing);
+    bindEvents(['pointerdown'], startDrawing);
+    bindEvents(['pointermove'], draw);
+    bindEvents(['pointerup', 'pointercancel', 'pointerleave'], stopDrawing);
+    bindEvents(['pointerup'], handlePointerTap);
 }
 else {
-    drawBoard.addEventListener('mousedown', startDrawing);
-    drawBoard.addEventListener('mousemove', draw);
-    drawBoard.addEventListener('mouseup', stopDrawing);
-    drawBoard.addEventListener('mouseleave', stopDrawing);
-    drawBoard.addEventListener('touchstart', startDrawing, { passive: false });
-    drawBoard.addEventListener('touchmove', draw, { passive: false });
-    drawBoard.addEventListener('touchend', stopDrawing, { passive: false });
-    drawBoard.addEventListener('touchend', handleLegacyTouchTap, { passive: false });
-    drawBoard.addEventListener('touchcancel', stopDrawing, { passive: false });
+    bindEvents(['mousedown'], startDrawing);
+    bindEvents(['mousemove'], draw);
+    bindEvents(['mouseup', 'mouseleave'], stopDrawing);
+    bindEvents(['touchstart'], startDrawing, { passive: false });
+    bindEvents(['touchmove'], draw, { passive: false });
+    bindEvents(['touchend', 'touchcancel'], stopDrawing, { passive: false });
+    bindEvents(['touchend'], handleLegacyTouchTap, { passive: false });
 }
 
 async function initializeApp() {
     clearCanvas();
 
     try {
-        const availableModels = await discoverModels();
+        const availableModels = await discoverModels({ getModelAssetUrl, modelsBaseUrl, fallbackModels, plSort });
 
         renderModelOptions(availableModels);
         modelStatus.textContent = `Wykryto ${availableModels.length} modele.`;
