@@ -1,6 +1,5 @@
 [
-  "cyfry-mnist-test1.onnx",
-  "cyfry-mnist-test2.onnx",
-  "cyfry-mnist-test3.onnx",
-  "tm.xo.onnx"
+  "cyfry.mnist1.onnx",
+  "cyfry.mnist2.onnx",
+  "xo.tm.onnx"
 ]
