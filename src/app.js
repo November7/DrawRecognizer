@@ -15,11 +15,15 @@ const resultsPanel              =   document.querySelector('.results-panel');
 const ctx                       =   drawBoard.getContext('2d', { willReadFrequently: true });
 const preprocessCanvas          =   document.createElement('canvas');
 const preprocessCtx             =   preprocessCanvas.getContext('2d', { willReadFrequently: true });
+const cropCanvas                =   document.createElement('canvas');
+const cropCtx                   =   cropCanvas.getContext('2d', { willReadFrequently: true });
 const plSort                    =   (left, right) => left.localeCompare(right, 'pl');
 const modelsBaseUrl             =   new URL('models/', window.location.href);
 const fallbackModels            =   ['test1.onnx'];
 const DOUBLE_TAP_THRESHOLD_MS   =   320;
 const singleColumnMediaQuery    =   window.matchMedia('(max-width: 960px)');
+const drawingThreshold          =   12;
+const drawingPaddingRatio       =   0.18;
 const {
     discoverModels,
     normalizeScores,
@@ -117,11 +121,95 @@ function getInputLayout(shape) {
     return 'NCHW';
 }
 
-function getResizedPixelData(width, height) {
+function clampValue(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function getDrawingBounds() {
+    const { width, height } = drawBoard;
+    const imageData = ctx.getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const offset = (y * width + x) * 4;
+            const brightness = Math.max(imageData[offset], imageData[offset + 1], imageData[offset + 2]);
+
+            if (brightness <= drawingThreshold) continue;
+
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x > maxX) maxX = x;
+            if (y > maxY) maxY = y;
+        }
+    }
+
+    if (maxX < minX || maxY < minY) return null;
+
+    return {
+        left: minX,
+        top: minY,
+        right: maxX,
+        bottom: maxY,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1
+    };
+}
+
+function getCenteredDrawingImageData(width, height) {
+    const bounds = getDrawingBounds();
+
+    if (!bounds) {
+        preprocessCanvas.width = width;
+        preprocessCanvas.height = height;
+        preprocessCtx.drawImage(drawBoard, 0, 0, width, height);
+        return preprocessCtx.getImageData(0, 0, width, height).data;
+    }
+
+    const padding = Math.max(4, Math.round(Math.max(bounds.width, bounds.height) * drawingPaddingRatio));
+    const cropLeft = clampValue(bounds.left - padding, 0, drawBoard.width - 1);
+    const cropTop = clampValue(bounds.top - padding, 0, drawBoard.height - 1);
+    const cropRight = clampValue(bounds.right + padding, 0, drawBoard.width - 1);
+    const cropBottom = clampValue(bounds.bottom + padding, 0, drawBoard.height - 1);
+    const cropWidth = cropRight - cropLeft + 1;
+    const cropHeight = cropBottom - cropTop + 1;
+    const squareSize = Math.max(cropWidth, cropHeight);
+
+    cropCanvas.width = squareSize;
+    cropCanvas.height = squareSize;
+    cropCtx.fillStyle = '#000';
+    cropCtx.fillRect(0, 0, squareSize, squareSize);
+
+    const offsetX = Math.floor((squareSize - cropWidth) / 2);
+    const offsetY = Math.floor((squareSize - cropHeight) / 2);
+
+    cropCtx.drawImage(
+        drawBoard,
+        cropLeft,
+        cropTop,
+        cropWidth,
+        cropHeight,
+        offsetX,
+        offsetY,
+        cropWidth,
+        cropHeight
+    );
+
     preprocessCanvas.width = width;
     preprocessCanvas.height = height;
-    preprocessCtx.drawImage(drawBoard, 0, 0, width, height);
+    preprocessCtx.clearRect(0, 0, width, height);
+    preprocessCtx.fillStyle = '#000';
+    preprocessCtx.fillRect(0, 0, width, height);
+    preprocessCtx.drawImage(cropCanvas, 0, 0, width, height);
+
     return preprocessCtx.getImageData(0, 0, width, height).data;
+}
+
+function getResizedPixelData(width, height) {
+    return getCenteredDrawingImageData(width, height);
 }
 
 function buildFlatGrayTensor(shape, width, height) {
@@ -373,7 +461,7 @@ function draw(event) {
     if (!drag) return;
 
     ctx.beginPath();
-    ctx.lineWidth = 10;
+    ctx.lineWidth = 8;
     ctx.strokeStyle = 'white';
     ctx.lineCap = 'round';
     ctx.moveTo(pos.x, pos.y);
